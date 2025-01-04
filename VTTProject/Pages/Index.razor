@@ -1,0 +1,188 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.AspNetCore.Components
+@implements IAsyncDisposable
+
+<div class="game-container">
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <div class="image-container">
+            <img src="@CurrentImage" alt="Current Dungeon Scene" style="max-width: 100%; max-height: 50vh;">
+        </div>
+    </div>
+
+    <!-- Navigation and Chat -->
+    <div class="sidebar">
+        <nav class="nav-bar">
+            <a href="game">Game</a>
+            <!-- Add more navigation links here if needed -->
+        </nav>
+        <div class="chat-area">
+            <h4>Chat</h4>
+            <div class="chat-messages">
+                @foreach (var message in ChatMessages)
+                {
+                    <div class="@(message.IsSystemMessage ? "system-message" : "user-message")">
+                        <span>@message.UserName: </span>
+                        <span>@message.Text</span>
+                    </div>
+                }
+            </div>
+            <div class="chat-input">
+                <input @bind="NewMessage" placeholder="Type your message..." />
+                <button @onclick="SendMessage" disabled="@(!IsConnected)">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dice Rolling at the bottom -->
+    <div class="dice-rolling">
+        <button @onclick="() => RollDice(4)">d4</button>
+        <button @onclick="() => RollDice(6)">d6</button>
+        <button @onclick="() => RollDice(8)">d8</button>
+        <button @onclick="() => RollDice(10)">d10</button>
+        <button @onclick="() => RollDice(12)">d12</button>
+        <button @onclick="() => RollDice(20)">d20</button>
+    </div>
+</div>
+
+@code {
+    @inject NavigationManager NavigationManager
+    private class ChatMessage
+    {
+        public string UserName { get; set; } = "User";
+        public string Text { get; set; }
+        public bool IsSystemMessage { get; set; }
+    }
+
+    private HubConnection hubConnection;
+    private List<ChatMessage> ChatMessages = new List<ChatMessage>();
+    private string NewMessage = "";
+    private string UserName = "Anonymous"; // You might want to get this from user input or auth
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+        .WithUrl(NavigationManager.ToAbsoluteUri("/chatHub"))
+        .Build();
+
+        hubConnection.On<string, string>("ReceiveMessage", (user, message) =>
+        {
+            ChatMessages.Add(new ChatMessage { UserName = user, Text = message });
+            InvokeAsync(StateHasChanged);
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    public bool IsConnected => hubConnection.State == HubConnectionState.Connected;
+
+    private async Task SendMessage()
+    {
+        if (IsConnected && !string.IsNullOrWhiteSpace(NewMessage))
+        {
+            await hubConnection.SendAsync("SendMessage", UserName, NewMessage);
+            NewMessage = "";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+
+    private string CurrentImage = "/images/default.png"; // Default image path
+
+    private async Task RollDice(int dice)
+    {
+        var result = new Random().Next(1, dice + 1);
+        await hubConnection.SendAsync("SendMessage", "System", $"Rolled a d{dice}: {result}");
+    }
+}
+
+<style>
+    .game-container {
+        position: relative; /* or any positioned value */
+        display: flex;
+        height: 100vh;
+        flex-direction: row;
+    }
+
+    .main-content {
+        flex: 4; /* Main content takes 4/5 of the space */
+        padding: 20px;
+    }
+
+    .sidebar {
+        flex: 1; /* Sidebar takes 1/5 of the space */
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid #ccc;
+        height: 100vh;
+        overflow-y: auto;
+    }
+
+    .nav-bar {
+        flex: 0 0 20%; /* Navigation bar takes 20% of the sidebar height */
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-bottom: 1px solid #ccc;
+    }
+
+        .nav-bar a {
+            display: block;
+            margin-bottom: 5px;
+            color: #007bff;
+            text-decoration: none;
+        }
+
+    .chat-area {
+        flex: 1; /* Chat area takes the rest of the sidebar space */
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chat-messages {
+        flex: 1; /* Use flex to let this area grow and shrink */
+        overflow-y: auto;
+    }
+
+    .chat-input {
+        z-index: 1;
+        margin-top: auto; /* Push the input to the bottom */
+        display: flex;
+    }
+
+        .chat-input input {
+            flex-grow: 1;
+        }
+
+    .dice-rolling {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: #f8f9fa;
+        padding: 10px;
+        text-align: center;
+        z-index: 0; /* Ensure this is below the chat input */
+    }
+
+    .image-container {
+        margin-bottom: 20px;
+    }
+
+    .system-message {
+        color: #888;
+    }
+
+    .user-message {
+        color: #000;
+    }
+</style>
