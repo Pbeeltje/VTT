@@ -4,18 +4,15 @@
 @implements IAsyncDisposable
 
 <div class="game-container">
-    <!-- Main Content Area -->
     <div class="main-content">
         <div class="image-container">
-            <img src="@CurrentImage" alt="Current Dungeon Scene" style="max-width: 100%; max-height: 50vh;">
+            <img src="@CurrentImage" alt="Current Dungeon Scene">
         </div>
     </div>
 
-    <!-- Navigation and Chat -->
     <div class="sidebar">
         <nav class="nav-bar">
             <a href="game">Game</a>
-            <!-- Add more navigation links here if needed -->
         </nav>
         <div class="chat-area">
             <h4>Chat</h4>
@@ -35,14 +32,19 @@
         </div>
     </div>
 
-    <!-- Dice Rolling at the bottom -->
     <div class="dice-rolling">
-        <button @onclick="() => RollDice(4)">d4</button>
-        <button @onclick="() => RollDice(6)">d6</button>
-        <button @onclick="() => RollDice(8)">d8</button>
-        <button @onclick="() => RollDice(10)">d10</button>
-        <button @onclick="() => RollDice(12)">d12</button>
-        <button @onclick="() => RollDice(20)">d20</button>
+        @if (IsDM)
+        {
+            <InputFile OnChange="@LoadFile" accept="image/*" class="upload-button" />
+        }
+        <div class="dice-buttons">
+            <button @onclick="() => RollDice(4)">d4</button>
+            <button @onclick="() => RollDice(6)">d6</button>
+            <button @onclick="() => RollDice(8)">d8</button>
+            <button @onclick="() => RollDice(10)">d10</button>
+            <button @onclick="() => RollDice(12)">d12</button>
+            <button @onclick="() => RollDice(20)">d20</button>
+        </div>
     </div>
 </div>
 
@@ -60,6 +62,22 @@
     private string NewMessage = "";
     private string UserName = "Anonymous"; // You might want to get this from user input or auth
 
+    private bool IsDM = true; // This should be set based on user authentication or game state
+    private IBrowserFile loadedFile;
+
+    private async Task LoadFile(InputFileChangeEventArgs e)
+    {
+        loadedFile = e.File;
+        var buffer = new byte[loadedFile.Size];
+        await loadedFile.OpenReadStream().ReadAsync(buffer);
+
+        var imageType = loadedFile.ContentType;
+        var base64 = Convert.ToBase64String(buffer);
+        CurrentImage = $"data:{imageType};base64,{base64}";
+
+        // If you need to persist this image or share it with others, you would need to handle file storage here
+        // For simplicity, we'll just update the image in memory
+    }
 
 
     protected override async Task OnInitializedAsync()
@@ -107,79 +125,128 @@
 
 <style>
     .game-container {
-        position: relative; /* or any positioned value */
         display: flex;
-        height: 100vh;
-        flex-direction: row;
+        flex-direction: column;
+        height: 100%;
+        min-height: 100vh;
+        position: relative;
     }
 
     .main-content {
-        flex: 4; /* Main content takes 4/5 of the space */
-        padding: 20px;
+        flex: 1;
+        margin-right: 250px; /* Width of sidebar */
+        overflow: hidden;
+        position: relative;
     }
 
+    .image-container {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+        .image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
     .sidebar {
-        flex: 1; /* Sidebar takes 1/5 of the space */
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 250px;
+        height: 100%;
         display: flex;
         flex-direction: column;
         border-left: 1px solid #ccc;
-        height: 100vh;
-        overflow-y: auto;
+        background-color: #f8f9fa;
     }
 
     .nav-bar {
-        flex: 0 0 20%; /* Navigation bar takes 20% of the sidebar height */
-        background-color: #f8f9fa;
         padding: 10px;
         border-bottom: 1px solid #ccc;
     }
 
         .nav-bar a {
             display: block;
-            margin-bottom: 5px;
             color: #007bff;
             text-decoration: none;
+            margin-bottom: 5px;
         }
 
     .chat-area {
-        flex: 1; /* Chat area takes the rest of the sidebar space */
-        padding: 10px;
+        flex: 1;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
     }
 
     .chat-messages {
-        flex: 1; /* Use flex to let this area grow and shrink */
+        flex: 1;
         overflow-y: auto;
+        padding: 10px;
     }
 
     .chat-input {
-        z-index: 1;
-        margin-top: auto; /* Push the input to the bottom */
+        padding: 10px;
         display: flex;
+        gap: 8px;
+        background-color: #fff;
+        border-top: 1px solid #ccc;
     }
 
         .chat-input input {
-            flex-grow: 1;
+            flex: 1;
+            padding: 6px;
+        }
+
+        .chat-input button {
+            padding: 6px 12px;
         }
 
     .dice-rolling {
-        position: absolute;
+        position: fixed;
         bottom: 0;
         left: 0;
-        right: 0;
+        right: 250px; /* Width of sidebar */
+        height: 60px;
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        padding: 0 16px;
         background-color: #f8f9fa;
-        padding: 10px;
-        text-align: center;
-        z-index: 0; /* Ensure this is below the chat input */
+        border-top: 1px solid #ccc;
+        z-index: 1000;
     }
 
-    .image-container {
-        margin-bottom: 20px;
+    .dice-buttons {
+        display: flex;
+        gap: 8px;
+    }
+
+    .dice-rolling button {
+        padding: 6px 12px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+        .dice-rolling button:hover {
+            background-color: #0056b3;
+        }
+
+    .upload-button {
+        margin-right: 16px;
     }
 
     .system-message {
-        color: #888;
+        color: #666;
+        font-style: italic;
     }
 
     .user-message {
